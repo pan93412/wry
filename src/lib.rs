@@ -86,22 +86,14 @@ extern crate thiserror;
 #[macro_use]
 extern crate objc;
 
+use crate::application::window::BadIcon;
 use std::sync::mpsc::{RecvError, SendError};
-
-use crate::{
-  application::window::BadIcon,
-  http::{
-    header::{InvalidHeaderName, InvalidHeaderValue},
-    method::InvalidMethod,
-    status::InvalidStatusCode,
-    InvalidUri,
-  },
-};
-pub use serde_json::Value;
 use url::ParseError;
 
+pub use hyper as http;
+pub use serde_json::Value;
+
 pub mod application;
-pub mod http;
 pub mod webview;
 
 /// Convenient type alias of Result type for wry.
@@ -165,16 +157,7 @@ pub enum Error {
   WebView2Error(webview2_com::Error),
   #[error("Duplicate custom protocol registered: {0}")]
   DuplicateCustomProtocol(String),
-  #[error("Invalid header name: {0}")]
-  InvalidHeaderName(#[from] InvalidHeaderName),
-  #[error("Invalid header value: {0}")]
-  InvalidHeaderValue(#[from] InvalidHeaderValue),
-  #[error("Invalid uri: {0}")]
-  InvalidUri(#[from] InvalidUri),
-  #[error("Invalid status code: {0}")]
-  InvalidStatusCode(#[from] InvalidStatusCode),
-  #[error("Invalid method: {0}")]
-  InvalidMethod(#[from] InvalidMethod),
-  #[error("Infallible error, something went really wrong: {0}")]
-  Infallible(#[from] std::convert::Infallible),
+  // Http(#[from] hyper::Error),
+  #[error("HTTP Error: {0}")]
+  HttpResponse(#[from] hyper::http::Error),
 }

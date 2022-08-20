@@ -47,10 +47,6 @@ use crate::{
   Result,
 };
 
-use crate::http::{
-  Request as HttpRequest, RequestBuilder as HttpRequestBuilder, Response as HttpResponse,
-};
-
 pub struct InnerWebView {
   pub(crate) webview: id,
   #[cfg(target_os = "macos")]
@@ -62,7 +58,8 @@ pub struct InnerWebView {
   navigation_decide_policy_ptr: *mut Box<dyn Fn(String, bool) -> bool>,
   #[cfg(target_os = "macos")]
   file_drop_ptr: *mut (Box<dyn Fn(&Window, FileDropEvent) -> bool>, Rc<Window>),
-  protocol_ptrs: Vec<*mut Box<dyn Fn(&HttpRequest) -> Result<HttpResponse>>>,
+  protocol_ptrs:
+    Vec<*mut Box<dyn Fn(&hyper::Request<Vec<u8>>) -> Result<hyper::Response<Vec<u8>>>>>,
 }
 
 impl InnerWebView {
@@ -95,8 +92,10 @@ impl InnerWebView {
       unsafe {
         let function = this.get_ivar::<*mut c_void>("function");
         if !function.is_null() {
-          let function =
-            &mut *(*function as *mut Box<dyn for<'s> Fn(&'s HttpRequest) -> Result<HttpResponse>>);
+          let function = &mut *(*function
+            as *mut Box<
+              dyn for<'s> Fn(&'s hyper::Request<Vec<u8>>) -> Result<hyper::Response<Vec<u8>>>,
+            >);
 
           // Get url request
           let request: id = msg_send![task, request];
@@ -114,7 +113,7 @@ impl InnerWebView {
           };
 
           // Prepare our HttpRequest
-          let mut http_request = HttpRequestBuilder::new()
+          let mut http_request = hyper::Request::builder()
             .uri(nsstring.to_str())
             .method(method.to_str());
 
@@ -157,7 +156,10 @@ impl InnerWebView {
           if let Ok(sent_response) = function(&final_request) {
             let content = sent_response.body();
             // default: application/octet-stream, but should be provided by the client
-            let wanted_mime = sent_response.mimetype();
+            let wanted_mime = sent_response
+              .headers()
+              .get(hyper::header::CONTENT_TYPE)
+              .map(|v| v.to_str().unwrap());
             // default to 200
             let wanted_status_code = sent_response.status().as_u16() as i32;
             // default to HTTP/1.1

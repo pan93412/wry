@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
+use hyper::header::CONTENT_TYPE;
+
 fn main() -> wry::Result<()> {
   use http_range::HttpRange;
   use std::{
@@ -16,7 +18,7 @@ fn main() -> wry::Result<()> {
       event_loop::{ControlFlow, EventLoop},
       window::WindowBuilder,
     },
-    http::ResponseBuilder,
+    http::Response,
     webview::WebViewBuilder,
   };
 
@@ -52,7 +54,7 @@ fn main() -> wry::Result<()> {
     .unwrap()
     .with_custom_protocol("wry".into(), move |request| {
       // Remove url scheme
-      let path = request.uri().replace("wry://", "");
+      let path = request.uri().path();
       // Read the file content from file path
       let mut content = File::open(canonicalize(&path)?)?;
 
@@ -72,7 +74,7 @@ fn main() -> wry::Result<()> {
       };
 
       // prepare our http response
-      let mut response = ResponseBuilder::new();
+      let mut response = Response::builder();
 
       // read our range header if it exist, so we can return partial content
       if let Some(range) = request.headers().get("range") {
@@ -120,7 +122,11 @@ fn main() -> wry::Result<()> {
         content.read_to_end(&mut buf)?;
       }
 
-      response.mimetype(mimetype).status(status_code).body(buf)
+      response
+        .header(CONTENT_TYPE, mimetype)
+        .status(status_code)
+        .body(buf)
+        .map_err(Into::into)
     })
     // tell the webview to load the custom protocol
     .with_url("wry://examples/stream.html")?
