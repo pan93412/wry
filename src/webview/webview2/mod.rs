@@ -99,7 +99,10 @@ impl InnerWebView {
           CoreWebView2EnvironmentOptions::default().into();
 
         // remove "mini menu" - See https://github.com/tauri-apps/wry/issues/535
-        let _ = options.SetAdditionalBrowserArguments("--disable-features=msWebOOUI,msPdfOOUI");
+        // enable media autoplay - See https://github.com/tauri-apps/tauri/issues/347
+        let _ = options.SetAdditionalBrowserArguments(
+          "--disable-features=msWebOOUI,msPdfOOUI --autoplay-policy=no-user-gesture-required",
+        );
 
         if let Some(data_directory) = data_directory {
           CreateCoreWebView2EnvironmentWithOptions(

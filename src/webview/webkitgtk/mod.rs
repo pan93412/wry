@@ -18,8 +18,9 @@ use gio::Cancellable;
 use glib::signal::Inhibit;
 use gtk::prelude::*;
 use webkit2gtk::{
-  traits::*, NavigationPolicyDecision, PolicyDecisionType, UserContentInjectedFrames, UserScript,
-  UserScriptInjectionTime, WebView, WebViewBuilder,
+  traits::*, AutoplayPolicy, NavigationPolicyDecision, PolicyDecisionType,
+  UserContentInjectedFrames, UserScript, UserScriptInjectionTime, WebView, WebViewBuilder,
+  WebsitePoliciesBuilder,
 };
 use webkit2gtk_sys::{
   webkit_get_major_version, webkit_get_micro_version, webkit_get_minor_version,
@@ -68,6 +69,11 @@ impl InnerWebView {
       webview = webview.user_content_manager(web_context.manager());
       webview = webview.web_context(web_context.context());
       webview = webview.is_controlled_by_automation(web_context.allows_automation());
+      webview = webview.website_policies(
+        &WebsitePoliciesBuilder::new()
+          .autoplay(AutoplayPolicy::Allow)
+          .build(),
+      );
       webview.build()
     };
 

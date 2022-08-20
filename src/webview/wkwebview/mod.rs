@@ -261,6 +261,11 @@ impl InnerWebView {
         let _: id = msg_send![_preference, setValue:_yes forKey:dev];
       }
 
+      type WKAudiovisualMediaTypes = cocoa::foundation::NSUInteger;
+      #[allow(non_upper_case_globals)]
+      const WKAudiovisualMediaTypesNone: WKAudiovisualMediaTypes = 0;
+      let _: id = msg_send![_preference, setValue:WKAudiovisualMediaTypesNone forKey:NSString::new("mediaTypesRequiringUserActionForPlayback")];
+
       #[cfg(target_os = "macos")]
       let _: id = msg_send![_preference, setValue:_yes forKey:NSString::new("tabFocusesLinks")];
 
