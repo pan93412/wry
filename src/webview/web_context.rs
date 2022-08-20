@@ -88,3 +88,6 @@ impl WebContextImpl {
 
   fn set_allows_automation(&mut self, _flag: bool) {}
 }
+
+pub type CustomProtocolHandler =
+  dyn Fn(&hyper::Request<hyper::Body>) -> crate::Result<hyper::Response<hyper::Body>>;

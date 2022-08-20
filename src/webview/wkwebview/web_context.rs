@@ -1,12 +1,13 @@
 use crate::Result;
 
+use crate::webview::CustomProtocolHandler;
 use crate::{
   webview::web_context::WebContextData,
 };
 
 #[derive(Debug)]
 pub struct WebContextImpl {
-  protocols: Vec<*mut Box<dyn Fn(&hyper::Request<Vec<u8>>) -> Result<hyper::Response<Vec<u8>>>>>,
+  protocols: Vec<*mut Box<CustomProtocolHandler>>,
 }
 
 impl WebContextImpl {
@@ -18,7 +19,7 @@ impl WebContextImpl {
 
   pub fn set_allows_automation(&mut self, _flag: bool) {}
 
-  pub fn registered_protocols(&mut self, handler: *mut Box<dyn Fn(&hyper::Request<Vec<u8>>) -> Result<hyper::Response<Vec<u8>>>>) {
+  pub fn registered_protocols(&mut self, handler: *mut Box<CustomProtocolHandler>) {
     self.protocols.push(handler);
   }
 }

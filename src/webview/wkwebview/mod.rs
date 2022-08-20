@@ -47,6 +47,8 @@ use crate::{
   Result,
 };
 
+use super::CustomProtocolHandler;
+
 pub struct InnerWebView {
   pub(crate) webview: id,
   #[cfg(target_os = "macos")]
@@ -59,7 +61,7 @@ pub struct InnerWebView {
   #[cfg(target_os = "macos")]
   file_drop_ptr: *mut (Box<dyn Fn(&Window, FileDropEvent) -> bool>, Rc<Window>),
   protocol_ptrs:
-    Vec<*mut Box<dyn Fn(&hyper::Request<Vec<u8>>) -> Result<hyper::Response<Vec<u8>>>>>,
+    Vec<*mut Box<CustomProtocolHandler>>,
 }
 
 impl InnerWebView {
@@ -92,10 +94,7 @@ impl InnerWebView {
       unsafe {
         let function = this.get_ivar::<*mut c_void>("function");
         if !function.is_null() {
-          let function = &mut *(*function
-            as *mut Box<
-              dyn for<'s> Fn(&'s hyper::Request<Vec<u8>>) -> Result<hyper::Response<Vec<u8>>>,
-            >);
+          let function = &mut *(*function as *mut Box<CustomProtocolHandler>);
 
           // Get url request
           let request: id = msg_send![task, request];
@@ -118,26 +117,35 @@ impl InnerWebView {
             .method(method.to_str());
 
           // Get body
-          let mut sent_form_body = Vec::new();
+          // let mut sent_form_body = Vec::new();
           let body: id = msg_send![request, HTTPBody];
           let body_stream: id = msg_send![request, HTTPBodyStream];
-          if !body.is_null() {
+
+          let body: hyper::Body = if !body.is_null() {
             let length = msg_send![body, length];
             let data_bytes: id = msg_send![body, bytes];
-            sent_form_body = slice::from_raw_parts(data_bytes as *const u8, length).to_vec();
+
+            slice::from_raw_parts(data_bytes as *const u8, length).into()
           } else if !body_stream.is_null() {
             let _: () = msg_send![body_stream, open];
+            let buf: Vec<u8> = Vec::with_capacity(128);
 
-            while msg_send![body_stream, hasBytesAvailable] {
-              sent_form_body.reserve(128);
-              let p = sent_form_body.as_mut_ptr().add(sent_form_body.len());
-              let read_length = sent_form_body.capacity() - sent_form_body.len();
-              let count: usize = msg_send![body_stream, read: p maxLength: read_length];
-              sent_form_body.set_len(sent_form_body.len() + count);
-            }
+            let s = async_stream::stream! {
+              while msg_send![body_stream, hasBytesAvailable] {
+                let p = buf.as_mut_ptr();
+                let read_length = buf.capacity();
+                let count: usize = msg_send![body_stream, read: p maxLength: read_length];
+
+                yield buf
+              }
+            };
 
             let _: () = msg_send![body_stream, close];
-          }
+
+            hyper::Body::wrap_stream(s.into())
+          } else {
+            panic!()
+          };
 
           // Extract all headers fields
           let all_headers: id = msg_send![request, allHTTPHeaderFields];
@@ -152,7 +160,7 @@ impl InnerWebView {
           }
 
           // send response
-          let final_request = http_request.body(sent_form_body).unwrap();
+          let final_request = http_request.body(body).unwrap();
           if let Ok(sent_response) = function(&final_request) {
             let content = sent_response.body();
             // default: application/octet-stream, but should be provided by the client

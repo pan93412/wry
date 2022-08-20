@@ -41,7 +41,8 @@ serde_json = "1.0"
 thiserror = "1.0"
 url = "2.2"
 tao = { version = "0.13.3", default-features = false, features = [ "serde" ] }
-hyper = "0.14.20"
+hyper = { version = "0.14.20", features = ["stream"]}
+async-stream = "0.3.3"
 
 [dev-dependencies]
 anyhow = "1.0.58"

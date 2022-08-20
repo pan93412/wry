@@ -157,7 +157,6 @@ pub enum Error {
   WebView2Error(webview2_com::Error),
   #[error("Duplicate custom protocol registered: {0}")]
   DuplicateCustomProtocol(String),
-  // Http(#[from] hyper::Error),
   #[error("HTTP Error: {0}")]
   HttpResponse(#[from] hyper::http::Error),
 }

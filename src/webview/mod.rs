@@ -6,7 +6,8 @@
 
 mod web_context;
 
-pub use web_context::WebContext;
+use hyper::Body;
+pub use web_context::{WebContext, CustomProtocolHandler};
 
 #[cfg(target_os = "android")]
 pub(crate) mod android;
@@ -112,7 +113,7 @@ pub struct WebViewAttributes {
   /// - iOS: Same as macOS. To get the path of your assets, you can call [`CFBundle::resources_path`](https://docs.rs/core-foundation/latest/core_foundation/bundle/struct.CFBundle.html#method.resources_path). So url like `wry://assets/index.html` could get the html file in assets directory.
   ///
   /// [bug]: https://bugs.webkit.org/show_bug.cgi?id=229034
-  pub custom_protocols: Vec<(String, Box<dyn Fn(&hyper::Request<Vec<u8>>) -> Result<hyper::Response<Vec<u8>>>>)>,
+  pub custom_protocols: Vec<(String, Box<CustomProtocolHandler>)>,
   /// Set the IPC handler to receive the message from Javascript on webview to host Rust code.
   /// The message sent from webview should call `window.ipc.postMessage("insert_message_here");`.
   ///
@@ -254,7 +255,7 @@ impl<'a> WebViewBuilder<'a> {
   #[cfg(feature = "protocol")]
   pub fn with_custom_protocol<F>(mut self, name: String, handler: F) -> Self
   where
-    F: Fn(&hyper::Request<Vec<u8>>) -> Result<hyper::Response<Vec<u8>>> + 'static,
+    F: Fn(&hyper::Request<Body>) -> Result<hyper::Response<Body>> + 'static,
   {
     self
       .webview
