@@ -207,6 +207,9 @@ impl InnerWebView {
     unsafe {
       // Config and custom protocol
       let config: id = msg_send![class!(WKWebViewConfiguration), new];
+
+      let _: id = msg_send![config, setValue:0 as u64 forKey:NSString::new("mediaTypesRequiringUserActionForPlayback")];
+
       let mut protocol_ptrs = Vec::new();
       for (name, function) in attributes.custom_protocols {
         let scheme_name = format!("{}URLSchemeHandler", name);
@@ -260,11 +263,6 @@ impl InnerWebView {
         let dev = NSString::new("developerExtrasEnabled");
         let _: id = msg_send![_preference, setValue:_yes forKey:dev];
       }
-
-      type WKAudiovisualMediaTypes = cocoa::foundation::NSUInteger;
-      #[allow(non_upper_case_globals)]
-      const WKAudiovisualMediaTypesNone: WKAudiovisualMediaTypes = 0;
-      let _: id = msg_send![_preference, setValue:WKAudiovisualMediaTypesNone forKey:NSString::new("mediaTypesRequiringUserActionForPlayback")];
 
       #[cfg(target_os = "macos")]
       let _: id = msg_send![_preference, setValue:_yes forKey:NSString::new("tabFocusesLinks")];
