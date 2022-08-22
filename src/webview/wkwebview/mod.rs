@@ -6,6 +6,7 @@
 mod file_drop;
 mod web_context;
 
+use futures_util::StreamExt;
 pub use web_context::WebContextImpl;
 
 #[cfg(target_os = "macos")]
@@ -60,8 +61,7 @@ pub struct InnerWebView {
   navigation_decide_policy_ptr: *mut Box<dyn Fn(String, bool) -> bool>,
   #[cfg(target_os = "macos")]
   file_drop_ptr: *mut (Box<dyn Fn(&Window, FileDropEvent) -> bool>, Rc<Window>),
-  protocol_ptrs:
-    Vec<*mut Box<CustomProtocolHandler>>,
+  protocol_ptrs: Vec<*mut Box<CustomProtocolHandler>>,
 }
 
 impl InnerWebView {
@@ -128,23 +128,26 @@ impl InnerWebView {
             slice::from_raw_parts(data_bytes as *const u8, length).into()
           } else if !body_stream.is_null() {
             let _: () = msg_send![body_stream, open];
-            let buf: Vec<u8> = Vec::with_capacity(128);
+            let mut buf: Vec<u8> = Vec::with_capacity(128);
 
-            let s = async_stream::stream! {
+            let body_stream = objc_id::ShareId::from_retained_ptr(body_stream);
+
+            let stream = async_stream::try_stream! {
               while msg_send![body_stream, hasBytesAvailable] {
-                let p = buf.as_mut_ptr();
-                let read_length = buf.capacity();
-                let count: usize = msg_send![body_stream, read: p maxLength: read_length];
+                unsafe {
+                  let read_length = buf.capacity();
+                  let p = buf.as_mut_ptr();
+                  let count: usize = msg_send![body_stream, read: p maxLength: read_length];
+                  buf.set_len(count);
+                }
 
-                yield buf
+                yield buf.clone()
               }
             };
 
-            let _: () = msg_send![body_stream, close];
-
-            hyper::Body::wrap_stream(s.into())
+            hyper::Body::wrap_stream::<_, _, crate::Error>(stream)
           } else {
-            panic!()
+            hyper::Body::empty()
           };
 
           // Extract all headers fields
@@ -161,24 +164,21 @@ impl InnerWebView {
 
           // send response
           let final_request = http_request.body(body).unwrap();
-          if let Ok(sent_response) = function(&final_request) {
-            let content = sent_response.body();
+          if let Ok(mut sent_response) = function(final_request) {
             // default: application/octet-stream, but should be provided by the client
             let wanted_mime = sent_response
               .headers()
               .get(hyper::header::CONTENT_TYPE)
               .map(|v| v.to_str().unwrap());
+
             // default to 200
             let wanted_status_code = sent_response.status().as_u16() as i32;
+
             // default to HTTP/1.1
             let wanted_version = format!("{:#?}", sent_response.version());
 
             let dictionary: id = msg_send![class!(NSMutableDictionary), alloc];
             let headers: id = msg_send![dictionary, initWithCapacity:1];
-            if let Some(mime) = wanted_mime {
-              let () = msg_send![headers, setObject:NSString::new(mime) forKey: NSString::new("content-type")];
-            }
-            let () = msg_send![headers, setObject:NSString::new(&content.len().to_string()) forKey: NSString::new("content-length")];
 
             // add headers
             for (name, value) in sent_response.headers().iter() {
@@ -188,15 +188,28 @@ impl InnerWebView {
               }
             }
 
+            if let Some(mime) = wanted_mime {
+              let () = msg_send![headers, setObject:NSString::new(mime) forKey: NSString::new("content-type")];
+            }
+
             let urlresponse: id = msg_send![class!(NSHTTPURLResponse), alloc];
             let response: id = msg_send![urlresponse, initWithURL:url statusCode: wanted_status_code HTTPVersion:NSString::new(&wanted_version) headerFields:headers];
             let () = msg_send![task, didReceiveResponse: response];
 
+            let task: Id<Object> = objc_id::Id::from_ptr(task);
             // Send data
-            let bytes = content.as_ptr() as *mut c_void;
-            let data: id = msg_send![class!(NSData), alloc];
-            let data: id = msg_send![data, initWithBytesNoCopy:bytes length:content.len() freeWhenDone: if content.len() == 0 { NO } else { YES }];
-            let () = msg_send![task, didReceiveData: data];
+            tokio::spawn(async move {
+              let content = sent_response.body_mut();
+
+              while let Some(content) = content.next().await {
+                let content = content.unwrap();
+                let bytes = content.as_ptr() as *mut c_void;
+
+                let data: id = msg_send![class!(NSData), alloc];
+                let data: id = msg_send![data, initWithBytesNoCopy:bytes length:content.len() freeWhenDone: if content.len() == 0 { NO } else { YES }];
+                let () = msg_send![task, didReceiveData: data];
+              }
+            });
           } else {
             let urlresponse: id = msg_send![class!(NSHTTPURLResponse), alloc];
             let response: id = msg_send![urlresponse, initWithURL:url statusCode:404 HTTPVersion:NSString::new("HTTP/1.1") headerFields:null::<c_void>()];

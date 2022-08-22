@@ -125,7 +125,7 @@ fn main() -> wry::Result<()> {
       response
         .header(CONTENT_TYPE, mimetype)
         .status(status_code)
-        .body(buf)
+        .body(buf.into())
         .map_err(Into::into)
     })
     // tell the webview to load the custom protocol

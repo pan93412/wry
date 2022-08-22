@@ -23,18 +23,25 @@ fn main() -> wry::Result<()> {
 
   let _webview = WebViewBuilder::new(window)
     .unwrap()
-    .with_custom_protocol("wry".into(), move |request| {
-      if request.method() == Method::POST {
-        let body_string = String::from_utf8_lossy(request.body());
-        for body in body_string.split('&') {
-          println!("Value sent; {:?}", body);
-        }
-      }
+    .with_custom_protocol("wry".into(), move |mut request| {
       // Remove url scheme
-      let path = request.uri().path();
+      let path = request.uri().path().to_string();
+
+      if request.method() == Method::POST {
+        tokio::spawn(async move {
+          let body = hyper::body::to_bytes(request.body_mut())
+            .await
+            .unwrap();
+          let body_string = String::from_utf8_lossy(&body);
+          for body in body_string.split('&') {
+            println!("Value sent; {:?}", body);
+          }
+        });
+      }
+
       Response::builder()
         .header(CONTENT_TYPE, "text/html")
-        .body(read(canonicalize(&path)?)?)
+        .body(read(canonicalize(&path)?)?.into())
         .map_err(Into::into)
     })
     // tell the webview to load the custom protocol

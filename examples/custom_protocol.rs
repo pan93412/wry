@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
-fn main() -> wry::Result<()> {
+#[tokio::main]
+async fn main() -> wry::Result<()> {
   use std::fs::{canonicalize, read};
 
   use wry::{
@@ -25,9 +26,9 @@ fn main() -> wry::Result<()> {
     .unwrap()
     .with_custom_protocol("wry".into(), move |request| {
       // Remove url scheme
-      let path = request.uri().path();
+      let path = request.uri().to_string().replace("wry://", "");
       // Read the file content from file path
-      let content = read(canonicalize(&path)?)?;
+      let content = read(canonicalize(&path)?)?; 
 
       // Return asset contents and mime types based on file extentions
       // If you don't want to do this manually, there are some crates for you.
@@ -44,7 +45,7 @@ fn main() -> wry::Result<()> {
 
       Response::builder()
         .header(CONTENT_TYPE, meta)
-        .body(data)
+        .body(data.into())
         .map_err(Into::into)
     })
     // tell the webview to load the custom protocol

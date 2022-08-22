@@ -1,5 +1,3 @@
-use crate::Result;
-
 use crate::webview::CustomProtocolHandler;
 use crate::{
   webview::web_context::WebContextData,

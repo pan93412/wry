@@ -255,7 +255,7 @@ impl<'a> WebViewBuilder<'a> {
   #[cfg(feature = "protocol")]
   pub fn with_custom_protocol<F>(mut self, name: String, handler: F) -> Self
   where
-    F: Fn(&hyper::Request<Body>) -> Result<hyper::Response<Body>> + 'static,
+    F: Fn(hyper::Request<Body>) -> Result<hyper::Response<Body>> + 'static,
   {
     self
       .webview

@@ -90,4 +90,4 @@ impl WebContextImpl {
 }
 
 pub type CustomProtocolHandler =
-  dyn Fn(&hyper::Request<hyper::Body>) -> crate::Result<hyper::Response<hyper::Body>>;
+  dyn Fn(hyper::Request<hyper::Body>) -> crate::Result<hyper::Response<hyper::Body>>;

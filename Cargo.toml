@@ -43,6 +43,8 @@ url = "2.2"
 tao = { version = "0.13.3", default-features = false, features = [ "serde" ] }
 hyper = { version = "0.14.20", features = ["stream"]}
 async-stream = "0.3.3"
+futures-util = "0.3.23"
+tokio = { version = "1.20.1", features = ["rt", "sync", "macros", "rt-multi-thread"]}
 
 [dev-dependencies]
 anyhow = "1.0.58"
