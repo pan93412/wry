@@ -92,6 +92,8 @@ impl InnerWebView {
     // Task handler for custom protocol
     extern "C" fn start_task(this: &Object, _: Sel, _webview: id, task: id) {
       unsafe {
+        let task = objc_id::ShareId::from_ptr(task);
+
         let function = this.get_ivar::<*mut c_void>("function");
         if !function.is_null() {
           let function = &mut *(*function as *mut Box<CustomProtocolHandler>);
@@ -196,7 +198,6 @@ impl InnerWebView {
             let response: id = msg_send![urlresponse, initWithURL:url statusCode: wanted_status_code HTTPVersion:NSString::new(&wanted_version) headerFields:headers];
             let () = msg_send![task, didReceiveResponse: response];
 
-            let task: Id<Object> = objc_id::Id::from_ptr(task);
             // Send data
             tokio::spawn(async move {
               let content = sent_response.body_mut();
@@ -209,14 +210,15 @@ impl InnerWebView {
                 let data: id = msg_send![data, initWithBytesNoCopy:bytes length:content.len() freeWhenDone: if content.len() == 0 { NO } else { YES }];
                 let () = msg_send![task, didReceiveData: data];
               }
+
+              let () = msg_send![task, didFinish];
             });
           } else {
             let urlresponse: id = msg_send![class!(NSHTTPURLResponse), alloc];
             let response: id = msg_send![urlresponse, initWithURL:url statusCode:404 HTTPVersion:NSString::new("HTTP/1.1") headerFields:null::<c_void>()];
             let () = msg_send![task, didReceiveResponse: response];
+            let () = msg_send![task, didFinish];
           }
-          // Finish
-          let () = msg_send![task, didFinish];
         } else {
           log::warn!(
             "Either WebView or WebContext instance is dropped! This handler shouldn't be called."
